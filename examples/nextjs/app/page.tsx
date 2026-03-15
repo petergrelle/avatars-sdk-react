@@ -7,8 +7,8 @@ import '@runwayml/avatars-react/styles.css';
 const PRESETS = [
   {
     id: '083e35dc-a076-479d-b724-96aa8462c429',
-    name: 'Uncle Peter',
-    subtitle: '',
+    name: 'Peter Grelle',
+    subtitle: 'The First Story Is Never The Whole Story',
     imageUrl: '/Whisk_trknjlknmy.jpg',
   },
 ];
@@ -36,7 +36,8 @@ export default function Home() {
       const res = await fetch('/api/avatar/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ avatarId }),
+        // THE FIX IS HERE: We explicitly tell the backend this is a customAvatarId
+        body: JSON.stringify({ customAvatarId: avatarId }), 
       });
       setSession(await res.json());
     } catch (err) {
