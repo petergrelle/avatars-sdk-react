@@ -9,8 +9,7 @@ const PRESETS = [
     id: '083e35dc-a076-479d-b724-96aa8462c429',
     name: 'Uncle Peter',
     subtitle: '',
-    imageUrl:
-      'https://runway-static-assets.s3.us-east-1.amazonaws.com/calliope-demo/presets-3-3/Dev-Avatar-4.png', // We will update this image next!
+    imageUrl: '/Whisk_trknjlknmy.jpg',
   },
 ];
 
