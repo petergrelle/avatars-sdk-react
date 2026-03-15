@@ -7,8 +7,8 @@ import '@runwayml/avatars-react/styles.css';
 const PRESETS = [
   {
     id: '083e35dc-a076-479d-b724-96aa8462c429',
-    name: 'Peter Grelle',
-    subtitle: 'The First Story Is Never The Whole Story',
+    name: 'Peter',
+    subtitle: '',
     imageUrl: '/Whisk_trknjlknmy.jpg',
   },
 ];
@@ -65,7 +65,7 @@ export default function Home() {
   return (
     <main className="page">
       <header className="header">
-        <h1 className="title">Shared Ground Media</h1>
+        <h1 className="title">Uncle Peter</h1>
         <p className="description">
           Click below to initiate a real-time conversation.
         </p>
