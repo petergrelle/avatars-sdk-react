@@ -13,12 +13,10 @@ export default function Home() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   
-  // Security & Avatar States
   const [passcode, setPasscode] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeAvatarId, setActiveAvatarId] = useState<string | null>(null);
 
-  // The default Uncle Peter ID 
   const DEFAULT_AVATAR_ID = '083e35dc-a076-479d-b724-96aa8462c429';
 
   const closeModal = useCallback(() => {
@@ -37,13 +35,11 @@ export default function Home() {
 
     setIsCreating(true);
 
-    // 1. Check the URL for a custom Character ID. If none, use Uncle Peter.
     const params = new URLSearchParams(window.location.search);
     const idFromUrl = params.get('id');
     const targetAvatarId = idFromUrl ? idFromUrl : DEFAULT_AVATAR_ID;
 
     try {
-      // 2. Ask our secure backend to verify the PIN
       const verifyRes = await fetch('/api/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -58,7 +54,6 @@ export default function Home() {
         return;
       }
 
-      // 3. PIN is verified and burned! Set the avatar and connect.
       setIsAuthenticated(true);
       setActiveAvatarId(targetAvatarId);
 
