@@ -1,40 +1,58 @@
-import Runway from '@runwayml/sdk';
+import { NextResponse } from 'next/server';
 
-const client = new Runway({ apiKey: process.env.RUNWAYML_API_SECRET });
+export async function POST(request: Request) {
+  try {
+    const { pin } = await request.json();
 
-export async function POST(req: Request) {
-  const { avatarId, customAvatarId } = await req.json();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-  const avatar = customAvatarId
-    ? { type: 'custom' as const, avatarId: customAvatarId }
-    : { type: 'runway-preset' as const, presetId: avatarId };
-
-  const { id: sessionId } = await client.realtimeSessions.create({
-    model: 'gwm1_avatars',
-    avatar,
-  });
-
-  const session = await pollSessionUntilReady(sessionId);
-
-  return Response.json({ sessionId, sessionKey: session.sessionKey });
-}
-
-async function pollSessionUntilReady(sessionId: string) {
-  const TIMEOUT_MS = 30_000;
-  const POLL_INTERVAL_MS = 1_000;
-  const deadline = Date.now() + TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
-    const session = await client.realtimeSessions.retrieve(sessionId);
-
-    if (session.status === 'READY') return session;
-
-    if (session.status === 'COMPLETED' || session.status === 'FAILED' || session.status === 'CANCELLED') {
-      throw new Error(`Session ${session.status.toLowerCase()} before becoming ready`);
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json({ error: 'Database configuration missing' }, { status: 500 });
     }
 
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-  }
+    // 1. Look up the PIN in the database
+    const response = await fetch(`${supabaseUrl}/rest/v1/access_codes?pin=eq.${pin}&select=*`, {
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+      },
+    });
 
-  throw new Error('Session creation timed out');
+    const data = await response.json();
+
+    // 2. Check if the PIN exists at all
+    if (!data || data.length === 0) {
+      return NextResponse.json({ error: 'Invalid Passcode' }, { status: 401 });
+    }
+
+    const codeRecord = data[0];
+
+    // 3. Check if they have run out of uses
+    if (codeRecord.uses_remaining <= 0) {
+      return NextResponse.json({ error: 'This passcode has run out of uses.' }, { status: 403 });
+    }
+
+    // 4. Do the math: subtract 1 from their remaining uses
+    const newUsesCount = codeRecord.uses_remaining - 1;
+
+    // 5. Update the database with the new countdown number
+    await fetch(`${supabaseUrl}/rest/v1/access_codes?id=eq.${codeRecord.id}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ uses_remaining: newUsesCount })
+    });
+
+    // 6. Let them in!
+    return NextResponse.json({ success: true, remaining: newUsesCount });
+
+  } catch (error) {
+    console.error('Verification error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
 }
