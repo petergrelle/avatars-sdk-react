@@ -51,7 +51,7 @@ export default function Home() {
       if (!verifyRes.ok) {
         alert(verifyData.error || "Verification failed");
         setIsCreating(false);
-        return;
+        return; // This stops the code from proceeding to Runway if the PIN is bad
       }
 
       setIsAuthenticated(true);
