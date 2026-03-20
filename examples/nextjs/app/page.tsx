@@ -13,21 +13,22 @@ export default function Home() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   
-  // Security States for our Database Bouncer
+  // Security & Avatar States
   const [passcode, setPasscode] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [activeAvatarId, setActiveAvatarId] = useState<string | null>(null);
 
-  // Your specific Uncle Peter Avatar ID
-  const AVATAR_ID = '083e35dc-a076-479d-b724-96aa8462c429';
+  // The default Uncle Peter ID 
+  const DEFAULT_AVATAR_ID = '083e35dc-a076-479d-b724-96aa8462c429';
 
   const closeModal = useCallback(() => {
     setSession(null);
     setIsCreating(false);
     setIsAuthenticated(false);
-    setPasscode(''); // Clear the passcode box when they hang up
+    setActiveAvatarId(null);
+    setPasscode(''); 
   }, []);
 
-  // This is our new, secure login function
   async function startSecureCall() {
     if (!passcode.trim()) {
       alert("Please enter a passcode.");
@@ -36,8 +37,13 @@ export default function Home() {
 
     setIsCreating(true);
 
+    // 1. Check the URL for a custom Character ID. If none, use Uncle Peter.
+    const params = new URLSearchParams(window.location.search);
+    const idFromUrl = params.get('id');
+    const targetAvatarId = idFromUrl ? idFromUrl : DEFAULT_AVATAR_ID;
+
     try {
-      // 1. Ask our new secure backend to verify the PIN
+      // 2. Ask our secure backend to verify the PIN
       const verifyRes = await fetch('/api/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -46,20 +52,20 @@ export default function Home() {
 
       const verifyData = await verifyRes.json();
 
-      // 2. If Supabase says no, stop here and show the error
       if (!verifyRes.ok) {
         alert(verifyData.error || "Verification failed");
         setIsCreating(false);
         return;
       }
 
-      // 3. If Supabase says yes, it already burned the PIN! We are clear to connect.
+      // 3. PIN is verified and burned! Set the avatar and connect.
       setIsAuthenticated(true);
+      setActiveAvatarId(targetAvatarId);
 
       const res = await fetch('/api/avatar/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customAvatarId: AVATAR_ID }),
+        body: JSON.stringify({ customAvatarId: targetAvatarId }),
       });
       setSession(await res.json());
 
@@ -105,7 +111,7 @@ export default function Home() {
         )}
       </div>
 
-      {isAuthenticated ? (
+      {isAuthenticated && activeAvatarId ? (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -115,7 +121,7 @@ export default function Home() {
             {session ? (
               <Suspense fallback={<div className="modal-loading">Connecting...</div>}>
                 <AvatarCall
-                  avatarId={AVATAR_ID}
+                  avatarId={activeAvatarId}
                   sessionId={session.sessionId}
                   sessionKey={session.sessionKey}
                   onEnd={closeModal}
