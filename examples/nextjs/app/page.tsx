@@ -10,73 +10,102 @@ interface SessionInfo {
 }
 
 export default function Home() {
-  const [activeAvatarId, setActiveAvatarId] = useState<string | null>(null);
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  
+  // Security States for our Database Bouncer
+  const [passcode, setPasscode] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Your default Uncle Peter ID for the Goobers
-  const DEFAULT_AVATAR_ID = '083e35dc-a076-479d-b724-96aa8462c429';
+  // Your specific Uncle Peter Avatar ID
+  const AVATAR_ID = '083e35dc-a076-479d-b724-96aa8462c429';
 
   const closeModal = useCallback(() => {
-    setActiveAvatarId(null);
     setSession(null);
     setIsCreating(false);
+    setIsAuthenticated(false);
+    setPasscode(''); // Clear the passcode box when they hang up
   }, []);
 
-  async function startCall() {
+  // This is our new, secure login function
+  async function startSecureCall() {
+    if (!passcode.trim()) {
+      alert("Please enter a passcode.");
+      return;
+    }
+
     setIsCreating(true);
 
-    // THE TRICK: Check the URL for a special ID when the button is clicked. 
-    // If no special ID is found, it defaults to Uncle Peter.
-    const params = new URLSearchParams(window.location.search);
-    const idFromUrl = params.get('id');
-    const finalAvatarId = idFromUrl ? idFromUrl : DEFAULT_AVATAR_ID;
-
-    setActiveAvatarId(finalAvatarId);
-
     try {
+      // 1. Ask our new secure backend to verify the PIN
+      const verifyRes = await fetch('/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: passcode }),
+      });
+
+      const verifyData = await verifyRes.json();
+
+      // 2. If Supabase says no, stop here and show the error
+      if (!verifyRes.ok) {
+        alert(verifyData.error || "Verification failed");
+        setIsCreating(false);
+        return;
+      }
+
+      // 3. If Supabase says yes, it already burned the PIN! We are clear to connect.
+      setIsAuthenticated(true);
+
       const res = await fetch('/api/avatar/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customAvatarId: finalAvatarId }),
+        body: JSON.stringify({ customAvatarId: AVATAR_ID }),
       });
       setSession(await res.json());
+
     } catch (err) {
       console.error(err);
+      alert("Connection error. Please try again.");
       setIsCreating(false);
+      setIsAuthenticated(false);
     }
   }
-
-  useEffect(() => {
-    if (!activeAvatarId) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeModal();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [activeAvatarId, closeModal]);
 
   return (
     <main className="page" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', backgroundColor: '#f9f9f9' }}>
       
       <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-        <h1 style={{ margin: '0 0 1rem 0', fontSize: '2rem' }}>Incoming Video Call</h1>
         
-        {/* You can replace this src with '/Whisk_trknjlknmy.jpg' if you want your face here */}
-        <div style={{ width: '150px', height: '150px', backgroundColor: '#ddd', borderRadius: '50%', margin: '0 auto 1.5rem auto', overflow: 'hidden' }}>
-           <img src="/Whisk_trknjlknmy.jpg" alt="Avatar Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        </div>
-
-        <button
-          onClick={startCall}
-          disabled={isCreating}
-          style={{ padding: '12px 32px', fontSize: '1.2rem', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 6px rgba(40, 167, 69, 0.3)' }}
-        >
-          {isCreating ? 'Connecting...' : 'Accept Call'}
-        </button>
+        {!isAuthenticated ? (
+          <>
+            <h1 style={{ margin: '0 0 1rem 0', fontSize: '2rem' }}>Secure Access</h1>
+            <p style={{ color: '#666', marginBottom: '1.5rem' }}>Enter your one-time passcode to connect.</p>
+            
+            <input
+              type="password"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+              placeholder="Enter PIN"
+              style={{ padding: '12px', width: '200px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '1.2rem', textAlign: 'center', marginBottom: '1rem', display: 'block', margin: '0 auto 1rem auto' }}
+              onKeyDown={(e) => { if (e.key === 'Enter') startSecureCall(); }}
+            />
+            <button
+              onClick={startSecureCall}
+              disabled={isCreating}
+              style={{ padding: '12px 32px', fontSize: '1.1rem', backgroundColor: '#000', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              {isCreating ? 'Verifying...' : 'Unlock'}
+            </button>
+          </>
+        ) : (
+          <div>
+            <h1 style={{ margin: '0 0 1rem 0', fontSize: '2rem' }}>Call in Progress</h1>
+            <p style={{ color: '#28a745', fontWeight: 'bold' }}>Secure connection established.</p>
+          </div>
+        )}
       </div>
 
-      {activeAvatarId ? (
+      {isAuthenticated ? (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -86,7 +115,7 @@ export default function Home() {
             {session ? (
               <Suspense fallback={<div className="modal-loading">Connecting...</div>}>
                 <AvatarCall
-                  avatarId={activeAvatarId}
+                  avatarId={AVATAR_ID}
                   sessionId={session.sessionId}
                   sessionKey={session.sessionKey}
                   onEnd={closeModal}
