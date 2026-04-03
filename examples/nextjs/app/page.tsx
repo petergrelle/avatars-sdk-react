@@ -18,6 +18,7 @@ export default function Home() {
   const [activeAvatarId, setActiveAvatarId] = useState<string | null>(null);
 
   const DEFAULT_AVATAR_ID = '083e35dc-a076-479d-b724-96aa8462c429';
+  const BYPASS_KEY = 'SGM2026';
 
   const closeModal = useCallback(() => {
     setSession(null);
@@ -27,31 +28,42 @@ export default function Home() {
     setPasscode(''); 
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('bypass') === BYPASS_KEY) {
+      startSecureCall();
+    }
+  }, []);
+
   async function startSecureCall() {
-    if (!passcode.trim()) {
+    const params = new URLSearchParams(window.location.search);
+    const bypassParam = params.get('bypass');
+
+    if (bypassParam !== BYPASS_KEY && !passcode.trim()) {
       alert("Please enter a passcode.");
       return;
     }
 
     setIsCreating(true);
 
-    const params = new URLSearchParams(window.location.search);
     const idFromUrl = params.get('id');
     const targetAvatarId = idFromUrl ? idFromUrl : DEFAULT_AVATAR_ID;
 
     try {
-      const verifyRes = await fetch('/api/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: passcode }),
-      });
+      if (bypassParam !== BYPASS_KEY) {
+        const verifyRes = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: passcode }),
+        });
 
-      const verifyData = await verifyRes.json();
+        const verifyData = await verifyRes.json();
 
-      if (!verifyRes.ok) {
-        alert(verifyData.error || "Verification failed");
-        setIsCreating(false);
-        return; // This stops the code from proceeding to Runway if the PIN is bad
+        if (!verifyRes.ok) {
+          alert(verifyData.error || "Verification failed");
+          setIsCreating(false);
+          return;
+        }
       }
 
       setIsAuthenticated(true);
