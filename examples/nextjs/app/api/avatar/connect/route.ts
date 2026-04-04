@@ -12,15 +12,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing avatarId' }, { status: 400 });
     }
 
-    const session = await client.realtimeSessions.create({
+    const { id: sessionId } = await client.realtimeSessions.create({
       model: 'gwm1_avatars',
       avatar: { type: 'custom', avatarId: id },
     });
 
-    return NextResponse.json({
-      sessionId: session.id,
-      sessionKey: session.sessionKey,
-    });
+    // Poll until the session is ready
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const session = await client.realtimeSessions.retrieve(sessionId);
+      if (session.status === 'READY') {
+        return NextResponse.json({ sessionId, sessionKey: session.sessionKey });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
+
+    return NextResponse.json({ error: 'Session creation timed out' }, { status: 504 });
 
   } catch (error: any) {
     console.error('Runway API Error:', error);
