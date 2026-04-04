@@ -1,26 +1,29 @@
+import RunwayML from '@runwayml/sdk';
 import { NextResponse } from 'next/server';
+
+// The SDK automatically grabs your RUNWAYML_API_SECRET from Netlify
+const client = new RunwayML();
 
 export async function POST(request: Request) {
   try {
-    const { customAvatarId } = await request.json();
+    const body = await request.json();
+    
+    // Grabs the ID you typed into the basic tester box
+    const targetId = body.customAvatarId || body.avatarId;
 
-    // The standard API call to Runway's servers
-    const response = await fetch('https://api.runwayml.com/v1/avatars/connect', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.RUNWAYML_API_SECRET}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ customAvatarId }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return NextResponse.json(data, { status: response.status });
+    if (!targetId) {
+        return NextResponse.json({ error: 'Missing Avatar ID' }, { status: 400 });
     }
 
-    return NextResponse.json(data);
+    // The official, secure way to create a Runway session
+    const session = await client.avatars.sessions.create({
+      avatarId: targetId
+    });
+
+    return NextResponse.json({
+      sessionId: session.id,
+      sessionKey: session.sessionKey
+    });
   } catch (error: any) {
     console.error('Runway connection error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
