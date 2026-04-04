@@ -2,54 +2,27 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const { pin } = await request.json();
+    const { customAvatarId } = await request.json();
 
-    // 1. Connect to Supabase using the secure environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ error: 'Database configuration missing' }, { status: 500 });
-    }
-
-    // 2. Look up the PIN in the database
-    const response = await fetch(`${supabaseUrl}/rest/v1/access_codes?pin=eq.${pin}&select=*`, {
+    // The standard API call to Runway's servers
+    const response = await fetch('https://api.runwayml.com/v1/avatars/connect', {
+      method: 'POST',
       headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
+        'Authorization': `Bearer ${process.env.RUNWAYML_API_SECRET}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ customAvatarId }),
     });
 
     const data = await response.json();
 
-    // 3. Check if the PIN exists and if it has been used
-    if (!data || data.length === 0) {
-      return NextResponse.json({ error: 'Invalid Passcode' }, { status: 401 });
+    if (!response.ok) {
+      return NextResponse.json(data, { status: response.status });
     }
 
-    const codeRecord = data[0];
-
-    if (codeRecord.is_used) {
-      return NextResponse.json({ error: 'Passcode has already been used' }, { status: 403 });
-    }
-
-    // 4. The PIN is good! Now, mark it as used in the database so it can never be used again.
-    await fetch(`${supabaseUrl}/rest/v1/access_codes?id=eq.${codeRecord.id}`, {
-      method: 'PATCH',
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({ is_used: true })
-    });
-
-    // 5. Tell the frontend it is safe to start the video call
-    return NextResponse.json({ success: true });
-
-  } catch (error) {
-    console.error('Verification error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(data);
+  } catch (error: any) {
+    console.error('Runway connection error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
