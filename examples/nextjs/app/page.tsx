@@ -1,146 +1,89 @@
 'use client';
 
-import { useCallback, useEffect, useState, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { AvatarCall } from '@runwayml/avatars-react';
 import '@runwayml/avatars-react/styles.css';
 
-interface SessionInfo {
-  sessionId: string;
-  sessionKey: string;
-}
-
 export default function Home() {
-  const [session, setSession] = useState<SessionInfo | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  
-  const [passcode, setPasscode] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeAvatarId, setActiveAvatarId] = useState<string | null>(null);
+  // Pre-filled with Uncle Peter, but you can type any ID into the box
+  const [avatarId, setAvatarId] = useState('083e35dc-a076-479d-b724-96aa8462c429'); 
+  const [session, setSession] = useState<any>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [error, setError] = useState('');
 
-  const DEFAULT_AVATAR_ID = '083e35dc-a076-479d-b724-96aa8462c429';
-  const BYPASS_KEY = 'SGM2026';
-
-  const closeModal = useCallback(() => {
-    setSession(null);
-    setIsCreating(false);
-    setIsAuthenticated(false);
-    setActiveAvatarId(null);
-    setPasscode(''); 
-  }, []);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('bypass') === BYPASS_KEY) {
-      startSecureCall();
-    }
-  }, []);
-
-  async function startSecureCall() {
-    const params = new URLSearchParams(window.location.search);
-    const bypassParam = params.get('bypass');
-
-    if (bypassParam !== BYPASS_KEY && !passcode.trim()) {
-      alert("Please enter a passcode.");
-      return;
-    }
-
-    setIsCreating(true);
-
-    const idFromUrl = params.get('id');
-    const targetAvatarId = idFromUrl ? idFromUrl : DEFAULT_AVATAR_ID;
-
+  async function connectToAvatar() {
+    setIsConnecting(true);
+    setError('');
+    
     try {
-      if (bypassParam !== BYPASS_KEY) {
-        const verifyRes = await fetch('/api/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin: passcode }),
-        });
-
-        const verifyData = await verifyRes.json();
-
-        if (!verifyRes.ok) {
-          alert(verifyData.error || "Verification failed");
-          setIsCreating(false);
-          return;
-        }
-      }
-
-      setIsAuthenticated(true);
-      setActiveAvatarId(targetAvatarId);
-
       const res = await fetch('/api/avatar/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customAvatarId: targetAvatarId }),
+        body: JSON.stringify({ customAvatarId: avatarId }),
       });
-      setSession(await res.json());
-
-    } catch (err) {
-      console.error(err);
-      alert("Connection error. Please try again.");
-      setIsCreating(false);
-      setIsAuthenticated(false);
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to authenticate with Runway API');
+      }
+      
+      setSession(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsConnecting(false);
     }
   }
 
   return (
-    <main className="page" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', backgroundColor: '#f9f9f9' }}>
+    <main style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '4rem', fontFamily: 'sans-serif' }}>
+      <h1>Basic Avatar Tester</h1>
       
-      <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-        
-        {!isAuthenticated ? (
-          <>
-            <h1 style={{ margin: '0 0 1rem 0', fontSize: '2rem' }}>Secure Access</h1>
-            <p style={{ color: '#666', marginBottom: '1.5rem' }}>Enter your one-time passcode to connect.</p>
-            
-            <input
-              type="password"
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              placeholder="Enter PIN"
-              style={{ padding: '12px', width: '200px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '1.2rem', textAlign: 'center', marginBottom: '1rem', display: 'block', margin: '0 auto 1rem auto' }}
-              onKeyDown={(e) => { if (e.key === 'Enter') startSecureCall(); }}
-            />
-            <button
-              onClick={startSecureCall}
-              disabled={isCreating}
-              style={{ padding: '12px 32px', fontSize: '1.1rem', backgroundColor: '#000', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              {isCreating ? 'Verifying...' : 'Unlock'}
-            </button>
-          </>
-        ) : (
-          <div>
-            <h1 style={{ margin: '0 0 1rem 0', fontSize: '2rem' }}>Call in Progress</h1>
-            <p style={{ color: '#28a745', fontWeight: 'bold' }}>Secure connection established.</p>
-          </div>
-        )}
-      </div>
-
-      {isAuthenticated && activeAvatarId ? (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="modal-title">Live Session</span>
-              <button className="modal-close" onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
+      {!session ? (
+        <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+          <p>Paste any Character ID to test the connection:</p>
+          <input 
+            value={avatarId} 
+            onChange={(e) => setAvatarId(e.target.value)}
+            style={{ width: '350px', padding: '12px', fontSize: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}
+          />
+          <br /><br />
+          <button 
+            onClick={connectToAvatar} 
+            disabled={isConnecting}
+            style={{ padding: '12px 24px', fontSize: '1rem', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            {isConnecting ? 'Connecting...' : 'Test Connection'}
+          </button>
+          
+          {error && (
+            <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #f87171', borderRadius: '4px' }}>
+              <strong>Connection Failed:</strong> {error}
             </div>
-            {session ? (
-              <Suspense fallback={<div className="modal-loading">Connecting...</div>}>
-                <AvatarCall
-                  avatarId={activeAvatarId}
-                  sessionId={session.sessionId}
-                  sessionKey={session.sessionKey}
-                  onEnd={closeModal}
-                  onError={console.error}
-                />
-              </Suspense>
-            ) : isCreating ? (
-              <div className="modal-loading">Establishing secure connection...</div>
-            ) : null}
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+          <button 
+            onClick={() => setSession(null)}
+            style={{ marginBottom: '1rem', padding: '8px 16px', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            Hang Up
+          </button>
+          
+          <div style={{ width: '100%', maxWidth: '800px', height: '600px', backgroundColor: '#000', borderRadius: '8px', overflow: 'hidden' }}>
+            <Suspense fallback={<div style={{ color: 'white', textAlign: 'center', marginTop: '20%' }}>Loading Video Feed...</div>}>
+              <AvatarCall 
+                avatarId={avatarId} 
+                sessionId={session.sessionId} 
+                sessionKey={session.sessionKey} 
+                onEnd={() => setSession(null)}
+              />
+            </Suspense>
           </div>
         </div>
-      ) : null}
+      )}
     </main>
   );
 }
